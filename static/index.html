@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>감정평가 지도 사진자료</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #667085;
+      --line: #d8dee8;
+      --panel: #ffffff;
+      --bg: #f5f7fa;
+      --accent: #1f6f5b;
+      --accent-strong: #155845;
+      --danger: #b42318;
+      --warn: #8a5a00;
+      --blue: #173b57;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, "Malgun Gothic", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    header {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    h1 { margin: 0; font-size: 20px; letter-spacing: 0; }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 390px 1fr;
+      gap: 20px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+    }
+    h2 { font-size: 16px; margin: 0 0 14px; }
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin: 12px 0 6px;
+    }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font: inherit;
+      color: var(--ink);
+      padding: 10px 11px;
+      background: #fff;
+    }
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 12px 14px;
+      margin-top: 16px;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-strong); }
+    button:disabled { opacity: .62; cursor: wait; }
+    .status { margin-top: 12px; font-size: 13px; color: var(--muted); min-height: 20px; }
+    .error { color: var(--danger); font-weight: 700; }
+    .small { color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 10px; }
+    .empty {
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      padding: 34px 18px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .download {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 14px;
+      background: var(--blue);
+      color: #fff;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 700;
+      margin: 4px 10px 14px 0;
+    }
+    .preview {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .preview a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .preview img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      object-fit: cover;
+      border-bottom: 1px solid var(--line);
+    }
+    .preview span { display: block; padding: 8px; }
+    .warnings { margin-top: 10px; color: var(--warn); font-size: 13px; line-height: 1.45; }
+    .meta {
+      display: grid;
+      gap: 7px;
+      margin: 8px 0 14px;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .meta strong { display: inline-block; min-width: 76px; color: var(--muted); }
+    .advanced {
+      margin-top: 14px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+    .advanced summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .checkline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .checkline input { width: auto; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { padding: 12px 16px; align-items: flex-start; flex-direction: column; }
+      .preview { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>감정평가 지도 사진자료</h1>
+    <span class="small">경기부동산포털 지도서비스 · 기존 자체감정 비교표준지 이력 기반</span>
+  </header>
+  <main>
+    <section>
+      <h2>지도자료 입력</h2>
+      <form id="form">
+        <label for="subjectAddress">물건지 주소</label>
+        <input id="subjectAddress" value="경기도 의정부시 의정부동 158-7" />
+
+        <label for="caseAddresses">평가사례 주소</label>
+        <textarea id="caseAddresses" placeholder="한 줄에 하나씩 입력">경기도 의정부시 의정부동 178-4</textarea>
+
+        <label for="tradeCases">거래사례 주소/계약일/금액</label>
+        <textarea id="tradeCases" placeholder="예: 사직리 420-4 | 2026.04.03 | 1.2억"></textarea>
+
+        <label for="appraisalNo">감정평가서 번호</label>
+        <input id="appraisalNo" value="PORTAL-UJB-158-7" />
+
+        <label for="officeName">사무소명</label>
+        <input id="officeName" value="감정평가사사무소" />
+
+        <details class="advanced">
+          <summary>고급 옵션</summary>
+
+          <label for="standardAddress">비교표준지 주소</label>
+          <input id="standardAddress" placeholder="비워두면 기존 gamjeong 이력에서 자동 반영" />
+
+          <label for="overviewBackground">포털 광역위치도 캡처 이미지 경로</label>
+          <input id="overviewBackground" placeholder="선택 입력" />
+
+          <label for="detailBackground">포털 상세위치도 캡처 이미지 경로</label>
+          <input id="detailBackground" placeholder="선택 입력" />
+
+          <label for="cadastralBackground">포털 지적도 캡처 이미지 경로</label>
+          <input id="cadastralBackground" placeholder="선택 입력" />
+
+          <label for="gamjeongDir">기존 gamjeong 폴더</label>
+          <input id="gamjeongDir" value="C:\Users\haho1\Downloads\gamjeong" />
+
+          <label class="checkline"><input id="noNetwork" type="checkbox" /> API 없이 양식만 검증</label>
+          <label class="checkline"><input id="capturePortal" type="checkbox" checked /> 경기부동산포털 자동 캡처</label>
+          <label class="checkline"><input id="skipOverlays" type="checkbox" /> 캡처 이미지에 표시가 이미 있음</label>
+          <label class="checkline"><input id="skipTrades" type="checkbox" /> 거래사례 자동조회 생략</label>
+
+          <label for="tradeMonths">거래사례 조회 기간(개월)</label>
+          <input id="tradeMonths" type="number" min="1" max="60" value="24" />
+
+          <label for="maxTradeCases">거래사례 자동조회 최대 건수</label>
+          <input id="maxTradeCases" type="number" min="1" max="20" value="6" />
+        </details>
+
+        <button id="submit" type="submit">실제 포털 지도 사진자료 생성</button>
+        <div id="status" class="status"></div>
+      </form>
+      <p class="small">비교표준지는 비워두면 기존 감정 이력에서 자동 반영하고, 상세위치도에는 본건위치(빨강), 비교표준지(파랑), 평가사례(주황), 거래사례(초록) 라벨을 함께 표시합니다.</p>
+    </section>
+
+    <section>
+      <h2>생성 결과</h2>
+      <div id="result" class="empty">생성하면 Word 문서와 지도 미리보기가 표시됩니다.</div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function escapeHtml(text) {
+      return String(text ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function render(data) {
+      const warnings = (data.warnings || []).length
+        ? `<div class="warnings">${data.warnings.map(escapeHtml).join("<br>")}</div>`
+        : "";
+      const cases = (data.caseAddresses || []).length ? data.caseAddresses.join(", ") : "입력 없음";
+      const trades = (data.tradeCases || []).length
+        ? data.tradeCases.map((item) => `${item.address || ""}${item.label ? " (" + String(item.label).replaceAll("\n", " · ") + ")" : ""}`).join(", ")
+        : "자동/입력 없음";
+      const meta = `
+        <div class="meta">
+          <div><strong>물건지</strong>${escapeHtml(data.subjectAddress || "")}</div>
+          <div><strong>비교표준지</strong>${escapeHtml(data.standardAddress || "자동 반영 없음")}</div>
+          <div><strong>평가사례</strong>${escapeHtml(cases)}</div>
+          <div><strong>거래사례</strong>${escapeHtml(trades)}</div>
+        </div>
+      `;
+      $("result").className = "";
+      $("result").innerHTML = `
+        <a class="download" href="${data.docxUrl}">Word 사진자료 다운로드</a>
+        <a class="download" href="${data.metadataUrl}">생성 정보 보기</a>
+        <div class="small">생성 폴더: ${escapeHtml(data.runDir)}</div>
+        ${meta}
+        ${warnings}
+        <div class="preview">
+          <a href="${data.overviewUrl}" target="_blank" rel="noopener"><img src="${data.overviewUrl}" alt="광역위치도"><span>광역위치도</span></a>
+          <a href="${data.detailUrl}" target="_blank" rel="noopener"><img src="${data.detailUrl}" alt="상세위치도"><span>상세위치도</span></a>
+          <a href="${data.cadastralUrl}" target="_blank" rel="noopener"><img src="${data.cadastralUrl}" alt="지적도"><span>지적도</span></a>
+        </div>
+      `;
+    }
+
+    $("form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      $("submit").disabled = true;
+      $("status").textContent = "경기부동산포털 지도 캡처 중입니다...";
+      $("status").className = "status";
+      try {
+        const payload = {
+          subjectAddress: $("subjectAddress").value,
+          standardAddress: $("standardAddress").value,
+          caseAddresses: $("caseAddresses").value,
+          tradeCases: $("tradeCases").value,
+          appraisalNo: $("appraisalNo").value,
+          officeName: $("officeName").value,
+          overviewBackground: $("overviewBackground").value,
+          detailBackground: $("detailBackground").value,
+          cadastralBackground: $("cadastralBackground").value,
+          gamjeongDir: $("gamjeongDir").value,
+          noNetwork: $("noNetwork").checked,
+          capturePortal: $("capturePortal").checked,
+          skipOverlays: $("skipOverlays").checked,
+          skipTrades: $("skipTrades").checked,
+          tradeMonths: $("tradeMonths").value,
+          maxTradeCases: $("maxTradeCases").value,
+        };
+        const res = await fetch("/api/map-photo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || "생성에 실패했습니다.");
+        render(data);
+        $("status").textContent = "완료되었습니다.";
+      } catch (error) {
+        $("status").textContent = error.message;
+        $("status").className = "status error";
+      } finally {
+        $("submit").disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

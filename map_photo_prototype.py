@@ -81,6 +81,7 @@ DONG_MAP = {
     "삼하리": "34027",
     "구읍리": "37024",
     "사직리": "37025",
+    "파주리": "25326",
 }
 
 DONG_CODE_OVERRIDES = {
@@ -103,8 +104,8 @@ NAVY = (31, 78, 121)
 LIGHT_BLUE = (213, 232, 240)
 LINE_BG = (231, 236, 243)
 GRAY_BG = (242, 242, 242)
-GAMJEONG_DIR_DEFAULT = Path(r"C:\Users\haho1\Downloads\gamjeong")
-WORD_OUTPUT_DIR_DEFAULT = Path.home() / "Documents" / "Codex" / "지적도 자료"
+GAMJEONG_DIR_DEFAULT = Path.home() / "Documents" / "gamjeong"
+WORD_OUTPUT_DIR_DEFAULT = Path(os.getenv("MAP_PHOTO_WORD_DIR") or Path.home() / "Documents" / "Codex" / "지적도 자료").expanduser()
 RTMS_LAND_TRADE_URL = "http://apis.data.go.kr/1613000/RTMSDataSvcLandTrade/getRTMSDataSvcLandTrade"
 GG_PUBLIC_PRICE_LAYER_URL = "https://gris.gg.go.kr:8888/grisgis/rest/services/bdSMap_Cbnd_PublicPriceCache/MapServer/1"
 
@@ -242,6 +243,7 @@ def subject_word_file_base_name(addresses: list[str]) -> str:
 
 def expand_compact_address(text: str) -> list[str]:
     text = re.sub(r"\s+", " ", str(text or "").strip())
+    text = re.sub(r"산\s*-\s*(?=\d)", "산 ", text)
     if not text:
         return []
     if "," not in text:
@@ -846,12 +848,22 @@ def center_of(features: list[SiteFeature]) -> tuple[float, float]:
 
 def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = [
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+        "/Library/Fonts/NanumGothicBold.ttf" if bold else "/Library/Fonts/NanumGothic.ttf",
+        str(Path.home() / "Library/Fonts/NanumGothicBold.ttf" if bold else Path.home() / "Library/Fonts/NanumGothic.ttf"),
         r"C:\Windows\Fonts\malgunbd.ttf" if bold else r"C:\Windows\Fonts\malgun.ttf",
         r"C:\Windows\Fonts\gulim.ttc",
     ]
+    font_index = 6 if bold else 0
     for path in candidates:
         if Path(path).exists():
-            return ImageFont.truetype(path, size=size)
+            try:
+                if path.endswith(".ttc"):
+                    return ImageFont.truetype(path, size=size, index=font_index)
+                return ImageFont.truetype(path, size=size)
+            except OSError:
+                continue
     return ImageFont.load_default()
 
 
@@ -1375,22 +1387,41 @@ def generate_photo_docx(
         return fallback
 
 
-def write_portal_capture_notes(run_dir: Path, subject_address: str) -> Path:
+def write_portal_capture_notes(
+    run_dir: Path,
+    subject_address: str,
+    standard_addresses: list[str] | None = None,
+    case_addresses: list[str] | None = None,
+    overview_source: str = "카카오맵 스카이뷰 (직접 검색·캡처)",
+    detail_source: str = "경기부동산포털 지도서비스 (직접 검색·캡처)",
+    cadastral_source: str = "경기부동산포털 연속지적도 (직접 검색·캡처)",
+    no_network_reason: str = "",
+) -> Path:
     path = run_dir / "경기부동산포털_캡처_메모.txt"
     lines = [
-        "경기부동산포털 지도 캡처 기준",
+        "감정평가 지도 사진자료 캡처 기준",
         "",
         f"물건지: {subject_address}",
-        f"광역위치도(항공사진): {PORTAL_MAP_URLS['overview']} / airMapLayer",
-        f"상세위치도(항공지적도): {PORTAL_MAP_URLS['detail']}",
-        f"지적도(연속지적도): {PORTAL_MAP_URLS['cadastral']}",
+        f"비교표준지: {', '.join(standard_addresses) if standard_addresses else '입력 없음'}",
+        "평가사례지:",
+        *([f"  - {address}" for address in case_addresses] if case_addresses else ["  - 입력 없음"]),
+        "",
+        f"광역위치도 출처: {overview_source}",
+        f"상세위치도 출처: {detail_source}",
+        f"지적도 출처: {cadastral_source}",
+        "",
+        f"참고 URL: {PORTAL_MAP_URLS['overview']} / {PORTAL_MAP_URLS['detail']} / {PORTAL_MAP_URLS['cadastral']}",
         "",
         "포털에서 직접 저장한 이미지를 배경으로 쓰려면 실행 시 아래 옵션을 지정합니다.",
         "--overview-background <광역 캡처 이미지>",
         "--detail-background <상세 캡처 이미지>",
         "--cadastral-background <지적도 캡처 이미지>",
+    ]
+    if no_network_reason:
+        lines += ["", f"API 미사용 사유: {no_network_reason}"]
+    lines += [
         "",
-        "저작권/이용조건: 포털 화면의 지도출력/이미지저장 기능과 고지 문구를 확인한 뒤 내부 검토/보고서 용도로 사용하세요.",
+        "저작권/이용조건: 포털·카카오맵 화면의 지도출력/이미지저장 기능과 고지 문구를 확인한 뒤 내부 검토/보고서 용도로 사용하세요.",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
@@ -1410,6 +1441,7 @@ def resolve_features(
     trade_months: int = 24,
     max_trade_cases: int = 6,
     manual_trade_cases: list[str] | None = None,
+    auto_reference: bool = True,
 ) -> tuple[list[SiteFeature], list[str]]:
     warnings: list[str] = []
     if not subject_addresses:
@@ -1421,7 +1453,7 @@ def resolve_features(
     all_input = [*subjects]
     primary_subject = subjects[0]
 
-    if not standard_addresses:
+    if not standard_addresses and auto_reference:
         history_standard, history_source = standard_from_gamjeong_history(primary_subject.address, gamjeong_dir)
         if history_standard:
             standard_addresses = [history_standard]
@@ -1462,7 +1494,7 @@ def resolve_features(
         else:
             feature.lon, feature.lat = coord
 
-    if not standard_addresses and not no_network and primary_subject.parsed:
+    if not standard_addresses and auto_reference and not no_network and primary_subject.parsed:
         try:
             auto_standard = find_standard_near(primary_subject.parsed, indvd_key or vworld_key)
         except Exception as exc:
@@ -1552,6 +1584,7 @@ def build_photo_material(
     trade_months: int = 24,
     max_trade_cases: int = 6,
     trade_case_entries: list[str] | None = None,
+    existing_new: bool = False,
 ) -> RenderResult:
     load_env_file(Path.cwd() / ".env")
     load_env_file(gamjeong_dir / ".env")
@@ -1561,6 +1594,11 @@ def build_photo_material(
     rtms_key = env_key("GAMJEONG_RTMS_KEY", "GAMJEONG_DATA_GO_KR_KEY", "DATA_GO_KR_SERVICE_KEY", "DATA_GO_KR_KEY", "MOLIT_RTMS_KEY", "RTMS_KEY")
     subject_addresses = expand_address_inputs(subject_address)
     standard_addresses = expand_address_inputs(standard_address)
+    raw_case_entries = [case_addresses] if isinstance(case_addresses, str) else list(case_addresses or [])
+    case_group_of: dict[str, int] = {}
+    for group_index, raw_entry in enumerate(raw_case_entries):
+        for case_address in expand_address_inputs(str(raw_entry)):
+            case_group_of.setdefault(case_address, group_index)
     case_addresses = expand_address_inputs(case_addresses)
     trade_case_entries = [str(entry).strip() for entry in (trade_case_entries or []) if str(entry).strip()]
     subject_display = subject_display_address(subject_addresses)
@@ -1584,6 +1622,7 @@ def build_photo_material(
         trade_months=trade_months,
         max_trade_cases=max_trade_cases,
         manual_trade_cases=trade_case_entries,
+        auto_reference=not existing_new,
     )
     if not features:
         raise RuntimeError("표시할 물건지 좌표를 만들지 못했습니다.")
@@ -1600,6 +1639,11 @@ def build_photo_material(
             subject_pnus = [f.pnu for f in features if f.kind == "subject" and f.pnu]
             standard_pnus = [f.pnu for f in standards if f.pnu]
             case_pnus = [f.pnu for f in features if f.kind == "case" and f.pnu]
+            case_group_pnus: dict[int, list[str]] = {}
+            for f in features:
+                if f.kind == "case" and f.pnu:
+                    case_group_pnus.setdefault(case_group_of.get(f.address, len(case_group_pnus)), []).append(f.pnu)
+            case_groups = [case_group_pnus[key] for key in sorted(case_group_pnus)]
             trade_overlays = [(f.pnu, f.label) for f in features if f.kind == "trade" and f.pnu]
             backgrounds = capture_portal_maps(
                 pnu=subject.pnu,
@@ -1608,17 +1652,40 @@ def build_photo_material(
                 standard_pnu=standard.pnu if standard else "",
                 standard_pnus=standard_pnus,
                 case_pnus=case_pnus,
+                case_groups=case_groups,
                 subject_pnus=subject_pnus,
                 trade_overlays=trade_overlays,
                 wait_seconds=10.0,
+                subject_label="기존토지" if existing_new else "본건위치",
+                case_label="신규 매입지" if existing_new else "평가사례",
+                cases_on_cadastral=existing_new,
             )
-            overview_background = backgrounds.get("overview") or overview_background
             detail_background = backgrounds.get("detail") or detail_background
             cadastral_background = backgrounds.get("cadastral") or cadastral_background
             skip_overlays = True
             warnings.append("경기부동산포털 실제 지도 캡처를 배경으로 사용했습니다.")
         except Exception as exc:
             warnings.append(f"경기부동산포털 자동 캡처 실패: {exc}")
+
+        if not overview_background:
+            try:
+                from kakao_capture_chrome import capture_kakao_overview
+                from portal_capture_chrome import CHROME_DEFAULT
+
+                kakao_path = run_dir / "portal_capture" / "kakao_overview.jpg"
+                overview_subject_pnus = [f.pnu for f in features if f.kind == "subject" and f.pnu]
+                overview_background = capture_kakao_overview(
+                    subject_display,
+                    kakao_path,
+                    chrome_path or CHROME_DEFAULT,
+                    subject_pnus=overview_subject_pnus or None,
+                    case_pnus=case_pnus if existing_new else None,
+                    case_label="신규 매입지" if existing_new else "평가사례",
+                    subject_label="기존토지" if existing_new else "본건위치",
+                )
+                warnings.append("카카오맵 스카이뷰 실제 캡처를 광역위치도 배경으로 사용했습니다.")
+            except Exception as exc:
+                warnings.append(f"카카오맵 스카이뷰 자동 캡처 실패: {exc}")
 
     subject_features = [f for f in features if f.kind == "subject"] or [subject]
     subject_center = center_of(subject_features)
@@ -1655,7 +1722,7 @@ def build_photo_material(
         features,
         detail,
         "상세위치도",
-        "물건지(빨강) · 비교표준지(파랑) · 평가사례(주황) · 거래사례(초록)",
+        "기존토지(빨강) · 신규 매입지(주황)" if existing_new else "물건지(빨강) · 비교표준지(파랑) · 평가사례(주황) · 거래사례(초록)",
         vworld_key if not no_network else "",
         detail_zoom,
         background_path=detail_background,
@@ -1683,7 +1750,32 @@ def build_photo_material(
         docx = saved_docx
         if word_docx is not None:
             word_docx = saved_docx
-    portal_notes = write_portal_capture_notes(run_dir, subject_display)
+    no_network_reason = "no-network 모드로 실행되어 실제 지도 대신 검증용 배경을 사용했습니다." if no_network else ""
+    overview_source = (
+        "카카오맵 스카이뷰 (직접 검색·캡처)"
+        if overview_background
+        else ("경기부동산포털 항공사진 (자동 캡처)" if capture_portal else "VWorld 배경 타일 자동 합성 / 검증용 배경")
+    )
+    detail_source = (
+        "경기부동산포털 지도서비스 (직접 검색·캡처)"
+        if (detail_background or capture_portal)
+        else "VWorld 배경 타일 자동 합성 / 검증용 배경"
+    )
+    cadastral_source = (
+        "경기부동산포털 연속지적도 (직접 검색·캡처)"
+        if (cadastral_background or capture_portal)
+        else "VWorld 배경 타일 자동 합성 / 검증용 배경"
+    )
+    portal_notes = write_portal_capture_notes(
+        run_dir,
+        subject_display,
+        standard_addresses=[f.address for f in standards] if standards else standard_addresses,
+        case_addresses=case_addresses,
+        overview_source=overview_source,
+        detail_source=detail_source,
+        cadastral_source=cadastral_source,
+        no_network_reason=no_network_reason,
+    )
 
     meta = {
         "createdAt": datetime.now().isoformat(timespec="seconds"),
@@ -1756,6 +1848,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--trade-months", type=int, default=24, help="거래사례 조회 기간(최근 개월 수)")
     parser.add_argument("--max-trade-cases", type=int, default=6, help="상세위치도에 표시할 거래사례 최대 건수")
     parser.add_argument("--trade-case", action="append", default=[], help="거래사례 직접 입력. 예: '사직리 420-4 | 2026.04.03 | 1.2억'")
+    parser.add_argument("--existing-new", action="store_true", help="채무자 기존토지(물건지·빨강)와 신규 매입지(--case-address·주황)를 광역·상세·지적도에 함께 표기합니다.")
     parser.add_argument("--no-network", action="store_true", help="API 호출 없이 양식/배치 검증용 이미지 생성")
     return parser.parse_args(argv)
 
@@ -1782,6 +1875,7 @@ def main(argv: list[str] | None = None) -> int:
         trade_months=args.trade_months,
         max_trade_cases=args.max_trade_cases,
         trade_case_entries=args.trade_case,
+        existing_new=args.existing_new,
     )
     print(f"overview={result.overview}")
     print(f"detail={result.detail}")

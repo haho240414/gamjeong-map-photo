@@ -19,7 +19,7 @@ from map_photo_prototype import GAMJEONG_DIR_DEFAULT, WORD_OUTPUT_DIR_DEFAULT, b
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-OUTPUT_DIR = BASE_DIR.parent / "outputs"
+OUTPUT_DIR = BASE_DIR / "outputs"
 
 
 def split_addresses(raw: str) -> list[str]:
@@ -123,7 +123,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if path == "/":
             return self.send_file(STATIC_DIR / "index.html", "text/html; charset=utf-8")
         if path.startswith("/download/"):
-            rel = unquote(path.removeprefix("/download/")).replace("/", "\\")
+            rel = unquote(path.removeprefix("/download/"))
             file_path = (OUTPUT_DIR / rel).resolve()
             try:
                 file_path.relative_to(OUTPUT_DIR.resolve())
@@ -142,7 +142,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 content_type = "application/octet-stream"
             return self.send_file(file_path, content_type)
         if path.startswith("/word-download/"):
-            rel = unquote(path.removeprefix("/word-download/")).replace("/", "\\")
+            rel = unquote(path.removeprefix("/word-download/"))
             file_path = (WORD_OUTPUT_DIR_DEFAULT / rel).resolve()
             try:
                 file_path.relative_to(WORD_OUTPUT_DIR_DEFAULT.resolve())

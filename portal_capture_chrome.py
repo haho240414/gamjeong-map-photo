@@ -9,6 +9,7 @@ import base64
 import hashlib
 import json
 import os
+import platform
 import random
 import shutil
 import socket
@@ -24,7 +25,26 @@ from pathlib import Path
 from PIL import Image
 
 
-CHROME_DEFAULT = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+def _default_chrome_path() -> Path:
+    candidates: list[Path]
+    if platform.system() == "Darwin":
+        candidates = [
+            Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+            Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
+            Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        ]
+    else:
+        candidates = [
+            Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+            Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+        ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+CHROME_DEFAULT = _default_chrome_path()
 MAP_URL = "https://map.gg.go.kr/map/main/grisMapView.do"
 MAP_SIZE = (1240, 1660)
 
@@ -125,7 +145,7 @@ class MiniWebSocket:
 
 class Cdp:
     def __init__(self, ws_url: str):
-        self.ws = MiniWebSocket(ws_url)
+        self.ws = MiniWebSocket(ws_url, timeout=60.0)
         self.next_id = 1
 
     def call(self, method: str, params: dict | None = None, timeout: float = 20.0) -> dict:
@@ -287,7 +307,7 @@ def fit_to_canvas(source: Path, target: Path, size: tuple[int, int] = MAP_SIZE) 
     fit_image_to_canvas(Image.open(source), target, size)
 
 
-def wait_until_ready(cdp: Cdp, pnu: str, timeout: float = 40.0) -> None:
+def wait_until_ready(cdp: Cdp, pnu: str, timeout: float = 180.0) -> None:
     deadline = time.time() + timeout
     expression = """
 (() => ({
@@ -296,15 +316,17 @@ def wait_until_ready(cdp: Cdp, pnu: str, timeout: float = 40.0) -> None:
   graphicReady: typeof window.graphicLayer !== 'undefined' && !!window.graphicLayer
 }))()
 """
+    last: object = "no response from page"
     while time.time() < deadline:
         try:
             value = cdp.eval(expression, timeout=3).get("result", {}).get("value", {})
+            last = value
             if value.get("mapReady") and value.get("pnuReady") and value.get("graphicReady"):
                 return
-        except Exception:
-            pass
+        except Exception as exc:
+            last = f"eval failed: {exc!r}"
         time.sleep(0.7)
-    raise TimeoutError(f"portal map was not ready for PNU {pnu}")
+    raise TimeoutError(f"portal map was not ready for PNU {pnu} after {timeout:.0f}s (last state: {last})")
 
 
 def clean_portal_ui(cdp: Cdp) -> None:
@@ -385,6 +407,7 @@ new Promise((resolve) => {{
   const extents = [];
   const found = [];
   const missing = [];
+  const labelCounts = {{}};
   const fitInfo = {{ applied: false, iterations: 0, screenBounds: null }};
   const finish = () => {{
     if (!({str(fit_extent).lower()} && extents.length > 0 && window.map)) {{
@@ -516,10 +539,14 @@ new Promise((resolve) => {{
               esri.symbol.Font.WEIGHT_BOLD,
               "Malgun Gothic, Arial"
             );
+            const colorKey = JSON.stringify(item.color);
+            const thisLabelIndex = labelCounts[colorKey] || 0;
+            labelCounts[colorKey] = thisLabelIndex + 1;
+            const labelOffsets = [[0, -48], [75, -4], [-75, -4], [0, -82]];
             const textSymbol = new esri.symbol.TextSymbol(item.label)
               .setColor(new dojo.Color(item.color))
               .setFont(font)
-              .setOffset(0, -22);
+              .setOffset(...labelOffsets[thisLabelIndex % 4]);
             if (typeof textSymbol.setHaloColor === "function") {{
               textSymbol.setHaloColor(new dojo.Color([255, 255, 255, 1]));
             }}
@@ -572,10 +599,17 @@ def capture_one(
     base_layer: str = "",
     focus_padding: int = 70,
 ) -> None:
-    cdp.call("Page.navigate", {"url": url}, timeout=10)
+    for attempt in range(3):
+        try:
+            cdp.call("Page.navigate", {"url": url}, timeout=45)
+            break
+        except (TimeoutError, socket.timeout):
+            if attempt == 2:
+                raise
+            time.sleep(3)
     try:
-        cdp.wait_event("Page.loadEventFired", timeout=30)
-    except TimeoutError:
+        cdp.wait_event("Page.loadEventFired", timeout=90)
+    except (TimeoutError, socket.timeout):
         pass
     try_clean_portal_ui(cdp)
     wait_until_ready(cdp, pnu)
@@ -657,9 +691,13 @@ def capture_portal_maps(
     standard_pnu: str = "",
     standard_pnus: list[str] | None = None,
     case_pnus: list[str] | None = None,
+    case_groups: list[list[str]] | None = None,
     subject_pnus: list[str] | None = None,
     trade_overlays: list[tuple[str, str]] | None = None,
     wait_seconds: float = 7.0,
+    subject_label: str = "본건위치",
+    case_label: str = "평가사례",
+    cases_on_cadastral: bool = False,
 ) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     profile = Path(tempfile.mkdtemp(prefix="codex-gris-chrome-"))
@@ -703,21 +741,27 @@ def capture_portal_maps(
             subject_pnus = list(subject_pnus) if subject_pnus is not None else [pnu]
             subject_pnus = list(dict.fromkeys(subject_pnus))
             subject_overlays = [
-                (subject_pnu, "본건위치" if index == 0 else "", (214, 40, 40))
+                (subject_pnu, subject_label if index == 0 else "", (214, 40, 40))
                 for index, subject_pnu in enumerate(subject_pnus)
             ]
             detail_overlays = [*subject_overlays]
-            for standard_pnu in standard_pnus:
-                detail_overlays.append((standard_pnu, "비교표준지", (35, 92, 204)))
-            for case_pnu in case_pnus:
-                detail_overlays.append((case_pnu, "평가사례", (235, 132, 35)))
+            for std_index, standard_pnu in enumerate(standard_pnus, 1):
+                label = "비교표준지" if len(standard_pnus) == 1 else f"비교표준지{std_index}"
+                detail_overlays.append((standard_pnu, label, (35, 92, 204)))
+            groups = [list(group) for group in (case_groups or [[pnu] for pnu in case_pnus]) if group]
+            for group_index, group in enumerate(groups, 1):
+                label = case_label if len(groups) == 1 else f"{case_label}{group_index}"
+                for member_index, case_pnu in enumerate(group):
+                    detail_overlays.append((case_pnu, label if member_index == 0 else "", (235, 132, 35)))
             for trade_pnu, trade_label in trade_overlays:
                 detail_overlays.append((trade_pnu, trade_label or "거래사례", (36, 145, 70)))
 
+            case_overlays = [item for item in detail_overlays if item[2] == (235, 132, 35)]
+            cadastral_overlays = [*subject_overlays, *case_overlays] if cases_on_cadastral else subject_overlays
             jobs = {
                 "overview": ("06", 9000, subject_overlays, False, 180, 900, False, False, "airMapLayer", 70),
                 "detail": ("01", 2600, detail_overlays, True, 25, 220, True, True, "", 35),
-                "cadastral": ("01", 700, subject_overlays, True, 70, 150, False, False, "", 70),
+                "cadastral": ("01", 700, cadastral_overlays, True, 70, 150, False, False, "", 70),
             }
             outputs: dict[str, Path] = {}
             for kind, (map_cd, scale, overlays, fit_overlays, fit_padding, fit_min_span, show_labels, focus_crop, base_layer, focus_padding) in jobs.items():

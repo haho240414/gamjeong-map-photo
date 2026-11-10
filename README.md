@@ -31,7 +31,18 @@ python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
 ```
 
-Windows는 `run_webapp.ps1`로 웹 화면을 실행합니다.
+Windows는 `run_windows.bat`(더블클릭) 또는 `run_webapp.ps1`로 웹 화면을 실행합니다.
+
+### 설치 (Windows)
+
+1. [Python 3.10 이상](https://www.python.org/downloads/)을 설치합니다(설치 화면에서 **Add python.exe to PATH** 체크).
+2. Google Chrome(또는 Microsoft Edge)을 설치합니다. 자동으로 찾지 못하면 환경변수 `CHROME_PATH`에 `chrome.exe` 경로를 지정합니다.
+3. **`run_windows.bat`을 더블클릭**하면 가상환경 생성, 패키지 설치, 웹 화면 실행까지 자동으로 합니다(PowerShell이면 `run_webapp.ps1`).
+4. 명령행으로 쓰려면 아래 예시의 `./.venv/bin/python`을 `.venv\Scripts\python`으로 바꿔 실행합니다. 줄바꿈 기호는 cmd는 `^`, PowerShell은 백틱(`` ` ``)이고, 한 줄로 써도 됩니다.
+
+```bat
+.venv\Scripts\python map_photo_prototype.py --subject-address "경기도 양주시 덕정동 366-12" --standard-address "경기도 양주시 덕정동 190-5" --capture-portal --skip-trades --output-dir outputs
+```
 
 Chrome 자동 캡처(`--capture-portal`)를 쓰려면 `/Applications/Google Chrome.app`이 설치되어 있어야 합니다(헤드리스로 실행됩니다).
 

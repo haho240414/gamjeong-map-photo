@@ -12,6 +12,7 @@ python3 -m venv .venv
 # Google Chrome 필요 (헤드리스로 실행). macOS: /Applications/Google Chrome.app
 ```
 
+- **Windows:** `run_windows.bat`(웹 화면) 또는 `py -3 -m venv .venv` 후 `.venv\Scripts\pip install -r requirements.txt`. 이후 명령의 `./.venv/bin/python`은 `.venv\Scripts\python`으로 바꾼다. Chrome(없으면 Edge)은 자동 탐색하며 `CHROME_PATH`로 지정할 수 있다. 콘솔 출력은 자동으로 UTF-8로 맞춘다.
 - 검수용으로 Word→PDF→PNG 변환이 필요하면 `pymupdf`를 추가 설치한다(`pip install pymupdf`). macOS는 LibreOffice가 없으면 Pages로 docx→PDF 변환.
 - API 키는 **필수 아님**(`.env.example` 참고). 키가 없어도 `--capture-portal`로 실제 지도 캡처가 된다. `.env`는 절대 커밋하지 않는다.
 

@@ -23,7 +23,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from map_photo_prototype import ORANGE, RED, load_font, url_json
-from portal_capture_chrome import CHROME_DEFAULT, Cdp, pick_port, wait_json
+from portal_capture_chrome import CHROME_DEFAULT, Cdp, pick_port, stop_browser, wait_json
 
 WINDOW_SIZE = (1400, 1760)
 # Left search panel + top bar to crop away after capture (device pixels at WINDOW_SIZE).
@@ -523,11 +523,7 @@ def capture_kakao_overview(
         finally:
             cdp.close()
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        stop_browser(proc)
         shutil.rmtree(profile, ignore_errors=True)
 
 

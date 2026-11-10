@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from map_photo_prototype import GAMJEONG_DIR_DEFAULT, WORD_OUTPUT_DIR_DEFAULT, build_photo_material
+from map_photo_prototype import GAMJEONG_DIR_DEFAULT, WORD_OUTPUT_DIR_DEFAULT, build_photo_material, ensure_utf8_console
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -168,6 +168,7 @@ class AppHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    ensure_utf8_console()
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8877)

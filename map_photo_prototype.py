@@ -849,23 +849,29 @@ def center_of(features: list[SiteFeature]) -> tuple[float, float]:
 
 
 def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    win = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+    # (경로, 보통 글꼴 index, 굵은 글꼴 index) — .ttc 는 글꼴 모음이라 index 가 필요하다
     candidates = [
-        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-        "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
-        "/Library/Fonts/NanumGothicBold.ttf" if bold else "/Library/Fonts/NanumGothic.ttf",
-        str(Path.home() / "Library/Fonts/NanumGothicBold.ttf" if bold else Path.home() / "Library/Fonts/NanumGothic.ttf"),
-        r"C:\Windows\Fonts\malgunbd.ttf" if bold else r"C:\Windows\Fonts\malgun.ttf",
-        r"C:\Windows\Fonts\gulim.ttc",
+        ("/System/Library/Fonts/AppleSDGothicNeo.ttc", 0, 6),
+        ("/System/Library/Fonts/Supplemental/AppleGothic.ttf", 0, 0),
+        (str(win / ("malgunbd.ttf" if bold else "malgun.ttf")), 0, 0),
+        (str(win / "malgun.ttf"), 0, 0),
+        (str(win / "gulim.ttc"), 0, 0),
+        (str(win / "batang.ttc"), 0, 0),
+        ("/Library/Fonts/NanumGothicBold.ttf" if bold else "/Library/Fonts/NanumGothic.ttf", 0, 0),
+        (str(Path.home() / "Library/Fonts" / ("NanumGothicBold.ttf" if bold else "NanumGothic.ttf")), 0, 0),
+        (str(Path.home() / "AppData/Local/Microsoft/Windows/Fonts" / ("NanumGothicBold.ttf" if bold else "NanumGothic.ttf")), 0, 0),
+        ("/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf" if bold else "/usr/share/fonts/truetype/nanum/NanumGothic.ttf", 0, 0),
     ]
-    font_index = 6 if bold else 0
-    for path in candidates:
-        if Path(path).exists():
-            try:
-                if path.endswith(".ttc"):
-                    return ImageFont.truetype(path, size=size, index=font_index)
-                return ImageFont.truetype(path, size=size)
-            except OSError:
-                continue
+    for path, regular_index, bold_index in candidates:
+        if not Path(path).exists():
+            continue
+        try:
+            if path.lower().endswith(".ttc"):
+                return ImageFont.truetype(path, size=size, index=bold_index if bold else regular_index)
+            return ImageFont.truetype(path, size=size)
+        except OSError:
+            continue
     return ImageFont.load_default()
 
 
@@ -1874,7 +1880,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def ensure_utf8_console() -> None:
+    """Windows 콘솔(cp949)에서 한글·특수문자 출력이 깨지거나 오류 나지 않게 한다."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    ensure_utf8_console()
     args = parse_args(argv or sys.argv[1:])
     result = build_photo_material(
         subject_address=args.subject_address,

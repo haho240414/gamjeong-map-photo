@@ -25,26 +25,54 @@ from pathlib import Path
 from PIL import Image
 
 
-def _default_chrome_path() -> Path:
-    candidates: list[Path]
-    if platform.system() == "Darwin":
-        candidates = [
+def find_chrome() -> Path:
+    """Chrome(없으면 Edge/Chromium) 실행 파일을 찾는다. 환경변수 CHROME_PATH 가 있으면 최우선."""
+    candidates: list[Path] = []
+    env_path = os.environ.get("CHROME_PATH", "").strip().strip('"')
+    if env_path:
+        candidates.append(Path(env_path))
+    system = platform.system()
+    if system == "Darwin":
+        candidates += [
             Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
             Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
+            Path("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
             Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
         ]
+    elif system == "Windows":
+        roots = [os.environ.get(key) for key in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
+        roots = [Path(root) for root in roots if root] or [Path(r"C:\Program Files"), Path(r"C:\Program Files (x86)")]
+        for root in roots:
+            candidates.append(root / "Google" / "Chrome" / "Application" / "chrome.exe")
+        for root in roots:  # Edge 도 같은 DevTools 프로토콜을 쓴다
+            candidates.append(root / "Microsoft" / "Edge" / "Application" / "msedge.exe")
     else:
-        candidates = [
-            Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-            Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
-        ]
+        for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge"):
+            found = shutil.which(name)
+            if found:
+                candidates.append(Path(found))
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    return candidates[0]
+    return candidates[0] if candidates else Path("chrome")
 
 
-CHROME_DEFAULT = _default_chrome_path()
+def stop_browser(proc: "subprocess.Popen") -> None:
+    """헤드리스 브라우저를 하위 프로세스까지 확실히 끈다(Windows 는 taskkill /T)."""
+    if proc.poll() is None:
+        if platform.system() == "Windows":
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    if platform.system() == "Windows":
+        time.sleep(0.5)  # 프로필 폴더 잠금이 풀리길 잠깐 기다린다
+
+
+CHROME_DEFAULT = find_chrome()
 MAP_URL = "https://map.gg.go.kr/map/main/grisMapView.do"
 MAP_SIZE = (1240, 1660)
 
@@ -793,11 +821,7 @@ def capture_portal_maps(
         finally:
             cdp.close()
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        stop_browser(proc)
         shutil.rmtree(profile, ignore_errors=True)
 
 

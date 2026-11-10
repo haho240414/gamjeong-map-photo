@@ -19,6 +19,8 @@ AI(Claude, Codex 등)에게 시킬 때와 직접 실행할 때 모두 설명합�
 
 ## 2. 설치
 
+> **Windows 사용자:** 아래 macOS/Linux 명령 대신 `run_windows.bat`을 더블클릭하면 설치와 웹 화면 실행이 한 번에 됩니다. 명령행에서는 `./.venv/bin/python`을 `.venv\Scripts\python`으로 바꿔 쓰면 됩니다(한 줄로 입력). Chrome이 없으면 Edge를 대신 사용하고, 설치 위치가 특이하면 환경변수 `CHROME_PATH`에 실행 파일 경로를 지정하세요.
+
 필요한 것: Python 3.10 이상, Google Chrome(헤드리스로 자동 실행됩니다), macOS 또는 Windows.
 
 ```bash
@@ -109,6 +111,10 @@ python3 -m venv .venv
 5. Word가 3페이지이고 이미지가 잘리지 않았는가(PDF로 열어 확인).
 
 ## 6. 자주 겪는 문제
+
+- **(Windows) 글자가 깨져 보임:** 콘솔은 자동으로 UTF-8로 맞춥니다. 그래도 깨지면 `chcp 65001` 후 실행하세요. 한글 폰트는 맑은 고딕을 씁니다.
+- **(Windows) `.ps1`이 막힘:** `run_windows.bat`을 쓰거나, PowerShell에서 `Set-ExecutionPolicy -Scope Process Bypass` 후 실행하세요.
+- **(Windows) 캡처가 시작되지 않음:** 백신/보안 프로그램이 헤드리스 Chrome을 막는 경우가 있습니다. `CHROME_PATH`가 올바른지, Chrome이 최신인지 확인하세요.
 
 | 증상 | 원인 / 해결 |
 |---|---|

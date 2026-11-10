@@ -24,7 +24,7 @@ python3 -m venv .venv
 | 평가사례지 | `--case-address` (인자 1개 = 사례 1건. **쉼표로 나열한 필지는 한 건**으로 묶여 라벨이 하나) |
 | 거래사례는 쓰지 않음 | `--skip-trades` 항상 붙인다 |
 
-- 같은 리/동이면 앞 필지에만 전체 주소를 쓰고 나머지는 지번만 써도 된다 (`"경기도 양주시 백석읍 홍죽리 340-1, 340-23"`).
+- 같은 리/동이면 앞 필지에만 전체 주소를 쓰고 나머지는 지번만 써도 된다 (`"경기도 양주시 덕정동 100-1, 100-2"`).
 - 사용자가 `/` 로 구분해 여러 사례를 주면 **각각 별도의 `--case-address`** 로 넘긴다.
 - "산-22-5"처럼 쓴 지번은 "산 22-5"로 정규화된다(산=임야 대지구분).
 - 새로운 법정동(리)이면 `map_photo_prototype.py`의 `DONG_MAP`/`SIGUNGU_MAP`에 코드가 없을 수 있다 → §6 참고.
@@ -33,9 +33,9 @@ python3 -m venv .venv
 
 ```bash
 ./.venv/bin/python map_photo_prototype.py \
-  --subject-address "경기도 양주시 광사동 653-5" \
-  --standard-address "경기도 양주시 광사동 656-2" \
-  --case-address "경기도 양주시 광사동 1-1, 1-2" \
+  --subject-address "경기도 양주시 덕정동 366-12" \
+  --standard-address "경기도 양주시 덕정동 190-5" \
+  --case-address "경기도 양주시 덕정동 138-14, 138-88, 138-37" \
   --capture-portal --skip-trades \
   --appraisal-no "사건번호" --output-dir ./outputs
 ```
@@ -75,12 +75,16 @@ python3 -m venv .venv
 - **새 법정동 추가:** 연속지적도 REST로 BCD(법정동코드 10자리)를 확인해 `DONG_MAP`에 뒤 5자리를 넣는다.
   ```bash
   curl -sk -G "https://gris.gg.go.kr:8888/grisgis/rest/services/bdsMap_Cbnd/MapServer/5/query" \
-    --data-urlencode "where=JIBUN_NM LIKE '%파주리 205-7%'" \
+    --data-urlencode "where=JIBUN_NM LIKE '%덕정동 366-12%'" \
     --data-urlencode "outFields=PNU,JIBUN_NM,BCD" --data-urlencode "returnGeometry=false" --data-urlencode "f=json"
   ```
   PNU = 법정동코드(10) + 대지구분(1: 일반, 2: 산) + 본번(4) + 부번(4).
   `PNU LIKE '…%'` 조회로 특정 리의 지번 목록도 볼 수 있다(페이지네이션 미지원 → 짧은 접두어로 나눠 조회).
 - 시군구가 경기도 밖이면 경기부동산포털 자체가 지원하지 않으므로 이 도구의 범위 밖이다.
+
+- **평가사례가 멀 때(수 km):** 한 화면에 다 넣으면 본건이 점이 된다. 사용자가 "멀어도 전부 나오게"를 택했으면 기본 3쪽(상세위치도에 사례 포함) 뒤에 본건·비교표준지만 확대한 상세도를 덧붙인다: `--extra-detail "<확대 상세 배경 이미지>|상세위치도(본건·비교표준지 확대)"` (여러 번 가능). 확대용 배경은 사례 없이 한 번 더 `--capture-portal`로 만들어 `portal_capture/portal_bg_detail.png`를 쓴다.
+- **한글 서식(위치도 34-580·건물개황도 34-581) 재현:** `form_documents.py`(`build_location_form`, `build_building_form`)가 A4·표 치수까지 서식을 Word로 재현한다. 건물개황도 도면 칸 그림은 `building_sketch.py`(층별 외곽+치수선 PNG)로 만든다. 면적·용도·구조는 **건축물대장 값**을 쓰고, 현황도(스캔) 치수 계산값은 대장과 3~5% 어긋날 수 있으니 대장이 없으면 반드시 그 한계를 고지한다. 건별 데이터는 `jobs/<건명>/`에 두며 `jobs/`는 `.gitignore` 대상이다(의뢰 건 정보 보호).
+- docx→PDF 검수가 필요하면 맥은 Pages(`open -a Pages` 후 AppleScript export), PDF→PNG는 pymupdf. QA 렌더용 폰트는 `FORM_FONT` 환경변수로 바꿀 수 있다(납품 기본은 맑은 고딕).
 
 ## 7. 개인정보·저작권
 

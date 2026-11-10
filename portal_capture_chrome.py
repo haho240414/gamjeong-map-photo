@@ -698,6 +698,7 @@ def capture_portal_maps(
     subject_label: str = "본건위치",
     case_label: str = "평가사례",
     cases_on_cadastral: bool = False,
+    kinds: tuple[str, ...] | None = None,
 ) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     profile = Path(tempfile.mkdtemp(prefix="codex-gris-chrome-"))
@@ -765,6 +766,8 @@ def capture_portal_maps(
             }
             outputs: dict[str, Path] = {}
             for kind, (map_cd, scale, overlays, fit_overlays, fit_padding, fit_min_span, show_labels, focus_crop, base_layer, focus_padding) in jobs.items():
+                if kinds is not None and kind not in kinds:
+                    continue
                 url = f"{MAP_URL}?mapCd={map_cd}&pnu={pnu}"
                 raw_path = output_dir / f"portal_raw_{kind}.png"
                 background_path = output_dir / f"portal_bg_{kind}.png"

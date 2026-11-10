@@ -49,6 +49,7 @@ SIGUNGU_MAP = {
     "양주시": "41630",
     "파주시": "41480",
     "포천시": "41650",
+    "동두천시": "41250",
 }
 
 DONG_MAP = {
@@ -82,6 +83,7 @@ DONG_MAP = {
     "구읍리": "37024",
     "사직리": "37025",
     "파주리": "25326",
+    "안흥동": "10800",
 }
 
 DONG_CODE_OVERRIDES = {
@@ -1356,6 +1358,7 @@ def generate_photo_docx(
     generated_at: str,
     appraisal_no: str,
     office_name: str,
+    extra_pages: list[tuple[Path, str]] | None = None,
 ) -> Path:
     doc = Document()
     section = doc.sections[0]
@@ -1372,6 +1375,8 @@ def generate_photo_docx(
         (detail, "M2", "상세위치도"),
         (cadastral, "M3", "지적도"),
     ]
+    for extra_index, (extra_path, extra_caption) in enumerate(extra_pages or [], 1):
+        entries.append((extra_path, f"M{3 + extra_index}", extra_caption))
     for index, (image_path, symbol, caption) in enumerate(entries):
         if index:
             doc.add_page_break()
@@ -1585,6 +1590,7 @@ def build_photo_material(
     max_trade_cases: int = 6,
     trade_case_entries: list[str] | None = None,
     existing_new: bool = False,
+    extra_detail_pages: list[tuple[Path, str]] | None = None,
 ) -> RenderResult:
     load_env_file(Path.cwd() / ".env")
     load_env_file(gamjeong_dir / ".env")
@@ -1744,7 +1750,21 @@ def build_photo_material(
     if not (used_overview_tiles and used_detail_tiles and used_cadastral_tiles) and not no_network:
         warnings.append("VWorld 배경 타일 일부를 가져오지 못해 검증용 배경이 사용된 이미지가 있습니다.")
 
-    saved_docx = generate_photo_docx(docx, subject_display, overview, detail, cadastral, generated_at, appraisal_no, office_name)
+    extra_pages: list[tuple[Path, str]] = []
+    for extra_bg, extra_caption in extra_detail_pages or []:
+        extra_out = run_dir / f"{file_base_name}_{extra_caption}.jpg"
+        render_map(
+            features,
+            extra_out,
+            extra_caption,
+            "물건지(빨강) · 비교표준지(파랑) · 평가사례(주황) · 거래사례(초록)",
+            vworld_key if not no_network else "",
+            detail_zoom,
+            background_path=extra_bg,
+            skip_overlays=True,
+        )
+        extra_pages.append((extra_out, extra_caption))
+    saved_docx = generate_photo_docx(docx, subject_display, overview, detail, cadastral, generated_at, appraisal_no, office_name, extra_pages)
     if saved_docx != docx:
         warnings.append(f"기존 Word 파일이 열려 있어 {saved_docx.name}으로 저장했습니다.")
         docx = saved_docx
@@ -1849,6 +1869,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--max-trade-cases", type=int, default=6, help="상세위치도에 표시할 거래사례 최대 건수")
     parser.add_argument("--trade-case", action="append", default=[], help="거래사례 직접 입력. 예: '사직리 420-4 | 2026.04.03 | 1.2억'")
     parser.add_argument("--existing-new", action="store_true", help="채무자 기존토지(물건지·빨강)와 신규 매입지(--case-address·주황)를 광역·상세·지적도에 함께 표기합니다.")
+    parser.add_argument("--extra-detail", action="append", default=[], help="Word 4쪽 이후에 덧붙일 상세지도 '이미지경로|캡션'. 여러 번 입력 가능.")
     parser.add_argument("--no-network", action="store_true", help="API 호출 없이 양식/배치 검증용 이미지 생성")
     return parser.parse_args(argv)
 
@@ -1876,6 +1897,7 @@ def main(argv: list[str] | None = None) -> int:
         max_trade_cases=args.max_trade_cases,
         trade_case_entries=args.trade_case,
         existing_new=args.existing_new,
+        extra_detail_pages=[(Path(a.split("|", 1)[0]), a.split("|", 1)[1] if "|" in a else "상세위치도(확대)") for a in args.extra_detail],
     )
     print(f"overview={result.overview}")
     print(f"detail={result.detail}")
